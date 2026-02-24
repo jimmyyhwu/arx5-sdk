@@ -38,14 +38,23 @@ target_link_libraries(arx5_interface PRIVATE
     kdl_parser
     orocos-kdl
     pthread
-    soem
 )
 target_include_directories(arx5_interface PUBLIC ${EIGEN3_INCLUDE_DIRS})
-
-# Hack for py310
-target_include_directories(arx5_interface PUBLIC $ENV{CONDA_PREFIX}/include/kdl_parser $ENV{CONDA_PREFIX}/include/urdfdom_headers)
 
 # # Optional: set the output directory for the built module
 set_target_properties(arx5_interface PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(arx5_interface PROPERTIES PREFIX "")
 set_target_properties(arx5_interface PROPERTIES OUTPUT_NAME "arx5_interface")
+
+# Installation rules for uv/pip packaging
+set_target_properties(arx5_interface PROPERTIES INSTALL_RPATH "$ORIGIN")
+install(TARGETS arx5_interface DESTINATION . COMPONENT python)
+install(FILES
+    ${LIB_DIR}/libhardware.so
+    ${LIB_DIR}/libsolver.so
+    ${LIB_DIR}/libsoem.so
+    DESTINATION . COMPONENT python
+)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../models
+    DESTINATION . COMPONENT python
+)

@@ -9,10 +9,32 @@
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <dlfcn.h>
 namespace py = pybind11;
 using namespace arx;
 using Pose6d = Eigen::Matrix<double, 6, 1>;
 using VecDoF = Eigen::VectorXd;
+
+// Returns the directory containing this .so at runtime
+static std::string get_module_dir() {
+    Dl_info dl_info;
+    if (dladdr((void*)&get_module_dir, &dl_info) && dl_info.dli_fname) {
+        std::string path(dl_info.dli_fname);
+        size_t last_slash = path.rfind('/');
+        if (last_slash != std::string::npos)
+            return path.substr(0, last_slash);
+    }
+    return std::string(SDK_ROOT);
+}
+
+// Replaces the compile-time SDK_ROOT prefix with the runtime module directory
+static RobotConfig patch_urdf(RobotConfig config) {
+    std::string sdk_root(SDK_ROOT);
+    if (!sdk_root.empty() && config.urdf_path.substr(0, sdk_root.size()) == sdk_root)
+        config.urdf_path = get_module_dir() + config.urdf_path.substr(sdk_root.size());
+    return config;
+}
+
 PYBIND11_MODULE(arx5_interface, m)
 {
     py::enum_<spdlog::level::level_enum>(m, "LogLevel")
@@ -58,7 +80,12 @@ PYBIND11_MODULE(arx5_interface, m)
         .def("kp", &Gain::get_kp_ref, py::return_value_policy::reference)
         .def("kd", &Gain::get_kd_ref, py::return_value_policy::reference);
     py::class_<Arx5JointController>(m, "Arx5JointController")
-        .def(py::init<const std::string &, const std::string &>())
+        .def(py::init([](const std::string &model, const std::string &interface) {
+            auto robot_config = patch_urdf(RobotConfigFactory::get_instance().get_config(model));
+            auto ctrl_config = ControllerConfigFactory::get_instance().get_config(
+                "joint_controller", robot_config.joint_dof);
+            return new Arx5JointController(robot_config, ctrl_config, interface);
+        }))
         .def(py::init<RobotConfig, ControllerConfig, const std::string &>())
         .def("send_recv_once", &Arx5JointController::send_recv_once)
         .def("recv_once", &Arx5JointController::recv_once)
@@ -79,7 +106,12 @@ PYBIND11_MODULE(arx5_interface, m)
         .def("calibrate_joint", &Arx5JointController::calibrate_joint)
         .def("calibrate_gripper", &Arx5JointController::calibrate_gripper);
     py::class_<Arx5CartesianController>(m, "Arx5CartesianController")
-        .def(py::init<const std::string &, const std::string &>())
+        .def(py::init([](const std::string &model, const std::string &interface) {
+            auto robot_config = patch_urdf(RobotConfigFactory::get_instance().get_config(model));
+            auto ctrl_config = ControllerConfigFactory::get_instance().get_config(
+                "cartesian_controller", robot_config.joint_dof);
+            return new Arx5CartesianController(robot_config, ctrl_config, interface);
+        }))
         .def(py::init<RobotConfig, ControllerConfig, const std::string &>())
         .def("set_eef_cmd", &Arx5CartesianController::set_eef_cmd)
         .def("set_eef_traj", &Arx5CartesianController::set_eef_traj)
@@ -142,7 +174,9 @@ PYBIND11_MODULE(arx5_interface, m)
         .def_readwrite("controller_dt", &ControllerConfig::controller_dt);
     py::class_<RobotConfigFactory>(m, "RobotConfigFactory")
         .def_static("get_instance", &RobotConfigFactory::get_instance, py::return_value_policy::reference)
-        .def("get_config", &RobotConfigFactory::get_config);
+        .def("get_config", [](RobotConfigFactory &self, const std::string &model) {
+            return patch_urdf(self.get_config(model));
+        });
     py::class_<ControllerConfigFactory>(m, "ControllerConfigFactory")
         .def_static("get_instance", &ControllerConfigFactory::get_instance, py::return_value_policy::reference)
         .def("get_config", &ControllerConfigFactory::get_config);

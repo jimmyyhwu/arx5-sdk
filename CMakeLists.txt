@@ -27,10 +27,6 @@ endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${EIGEN3_INCLUDE_DIRS})
-include_directories(
-    $ENV{CONDA_PREFIX}/include/
-    $ENV{CONDA_PREFIX}/include/urdfdom_headers
-)
 
 add_library(ArxJointController SHARED
     src/app/joint_controller.cpp
@@ -45,7 +41,6 @@ target_link_libraries(ArxJointController
     spdlog::spdlog
     kdl_parser
     orocos-kdl
-    soem
 )
 add_library(ArxCartesianController SHARED
     src/app/cartesian_controller.cpp
@@ -60,13 +55,7 @@ target_link_libraries(ArxCartesianController
     spdlog::spdlog
     kdl_parser
     orocos-kdl
-    soem
 )
-
-# Hack for py310 (conda environment is slightly different from other python versions)
-target_include_directories(ArxJointController PUBLIC $ENV{CONDA_PREFIX}/include/kdl_parser $ENV{CONDA_PREFIX}/include/urdfdom_headers)
-target_include_directories(ArxCartesianController PUBLIC $ENV{CONDA_PREFIX}/include/kdl_parser $ENV{CONDA_PREFIX}/include/urdfdom_headers)
-
 
 add_executable(test_joint_controller examples/test_joint_controller.cpp)
 target_link_libraries(test_joint_controller
@@ -78,7 +67,6 @@ target_link_libraries(test_joint_controller
     spdlog::spdlog
     kdl_parser
     orocos-kdl
-    soem
 )
 
 add_executable(test_cartesian_controller examples/test_cartesian_controller.cpp)
@@ -91,7 +79,6 @@ target_link_libraries(test_cartesian_controller
     Threads::Threads
     kdl_parser
     orocos-kdl
-    soem
 )
 
 add_subdirectory(python)
